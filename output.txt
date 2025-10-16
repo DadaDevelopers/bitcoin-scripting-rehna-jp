@@ -1,0 +1,96 @@
+ASSIGNMENT A
+
+OP_DUP OP_HASH160 <PubKeyHash> OP_EQUALVERIFY OP_CHECKSIG
+
+Breakdown of Each Opcode:
+
+OP_DUP -Duplicates the top item on the stack. Makes a copy of the public key so it can be both hashed and later used for signature verification
+OP_HASH160	-Performs RIPEMD160(SHA256(pubkey)). Converts the public key into its 20-byte hash (the Bitcoin address hash)
+<PubKeyHash>	-Pushes the stored public key hash. The address hash that must match the spender’s public key hash
+OP_EQUALVERIFY	-Checks if two top items are equal and fails if not. Ensures the public key provided matches the address hash
+OP_CHECKSIG	   -Verifies the digital signature. Confirms the spender owns the private key associated with the public key
+
+
+DIAGRAM SHOWING DATA FLOW:
+
+Initial stack:
+[ sig ] [ pubKey ]
+
+OP_DUP
+→ [ sig ] [ pubKey ] [ pubKey ]
+
+OP_HASH160
+→ [ sig ] [ pubKey ] [ HASH160(pubKey) ]
+
+Push <PubKeyHash>
+→ [ sig ] [ pubKey ] [ HASH160(pubKey) ] [ <PubKeyHash> ]
+
+OP_EQUALVERIFY
+→ (compares HASH160(pubKey) == <PubKeyHash>)
+→ if equal: [ sig ] [ pubKey ]
+→ if not: script fails 
+
+OP_CHECKSIG
+→ verifies signature using pubKey
+→ if valid: TRUE 
+→ if invalid: FALSE  (transaction rejected)
+
+
+If Signature Verification Fails
+
+OP_CHECKSIG pushes false to the stack.
+The final script result is false, meaning the transaction is invalid.
+The Bitcoin network rejects the transaction — funds remain unspent.
+
+
+Security Benefits of Hash Verification
+
+Protects public keys – The actual public key is only revealed during spending, reducing attack surface.
+Prevents forgery – Only a key pair matching the stored hash can unlock the funds.
+Saves space – The 20-byte hash is smaller than the full public key.
+Double verification – Both the hash match and signature check must succeed.
+
+
+
+ASSIGNMENT B
+
+HTLC Script
+
+OP_IF
+    OP_SHA256 <H> OP_EQUALVERIFY
+    <AlicePubKey> OP_CHECKSIG
+OP_ELSE
+    <locktime> OP_CHECKLOCKTIMEVERIFY OP_DROP
+    <BobPubKey> OP_CHECKSIG
+OP_ENDIF
+
+
+CLAIMING TRANSACTION Script
+
+<alice_sig> <alice_pubkey> <secret> 1 <redeemScript>
+
+
+REFUND TRANSACTION Script
+
+<bob_sig> 0 <redeemScript>
+
+
+SUPPOSING :
+Secret	-correcthorsebatterystaple
+Hash <H>	-cbe6beb26479b568e5f15b50217c6c83c0ee051dc4e522b9840d8e291d6aaf46
+Locktime (Unix)	-1760538060 (≈ 21 min later)
+
+THEN:
+OP_IF
+    OP_SHA256 0xcbe6beb26479b568e5f15b50217c6c83c0ee051dc4e522b9840d8e291d6aaf46 OP_EQUALVERIFY
+    <AlicePubKey> OP_CHECKSIG
+OP_ELSE
+    1760538060 OP_CHECKLOCKTIMEVERIFY OP_DROP
+    <BobPubKey> OP_CHECKSIG
+OP_ENDIF
+
+OUTCOME
+Alice submits claim with correct secret before timeout	= Transaction succeeds
+Alice submits wrong secret	= Script fails (hash mismatch)
+Bob tries refund before 21 mins	= CLTV fails
+Bob refunds after 21 mins	= Transaction succeeds
